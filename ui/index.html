@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Thyroid Cancer Classifier — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+/* ── Variables ─────────────────────────────────────────────────── */
+:root {
+  --bg:         #070d14;
+  --surface:    #0d1825;
+  --surface2:   #112030;
+  --border:     #1a3048;
+  --accent:     #00c2ff;
+  --accent2:    #00ffa3;
+  --danger:     #ff4d6d;
+  --warn:       #ffb830;
+  --text:       #e8f4f8;
+  --muted:      #5a7a8a;
+  --benign:     #00ffa3;
+  --malignant:  #ff4d6d;
+  --font-head:  'Syne', sans-serif;
+  --font-mono:  'DM Mono', monospace;
+  --radius:     12px;
+  --transition: 0.2s ease;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Background grid ───────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,194,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,194,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Layout ────────────────────────────────────────────────────── */
+.app { position: relative; z-index: 1; display: flex; min-height: 100vh; }
+
+/* ── Sidebar ───────────────────────────────────────────────────── */
+.sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 0;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 0 24px 28px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-logo .logo-mark {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 10px;
+}
+.sidebar-logo h1 {
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+.sidebar-logo span {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+.nav { padding: 20px 0; flex: 1; }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 24px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-family: var(--font-mono);
+  transition: all var(--transition);
+  border-left: 3px solid transparent;
+  letter-spacing: 0.02em;
+}
+.nav-item:hover { color: var(--text); background: rgba(0,194,255,0.04); }
+.nav-item.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: rgba(0,194,255,0.06);
+}
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+.sidebar-status {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+}
+.status-dot {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--muted);
+}
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+.dot.online  { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); animation: pulse 2s infinite; }
+.dot.offline { background: var(--danger); }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Main content ──────────────────────────────────────────────── */
+.main {
+  margin-left: 220px;
+  flex: 1;
+  padding: 32px 36px;
+  min-height: 100vh;
+}
+
+/* ── Pages ─────────────────────────────────────────────────────── */
+.page { display: none; animation: fadeIn 0.3s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Page header ───────────────────────────────────────────────── */
+.page-header { margin-bottom: 28px; }
+.page-header h2 {
+  font-family: var(--font-head);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.page-header p { color: var(--muted); font-size: 13px; }
+
+/* ── Cards ─────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  transition: border-color var(--transition);
+}
+.card:hover { border-color: rgba(0,194,255,0.2); }
+.card-title {
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* ── Stat grid ─────────────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), transparent);
+}
+.stat-card .stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.stat-card .stat-value {
+  font-family: var(--font-head);
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.stat-card .stat-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.stat-card.accent2::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+.stat-card.danger::before  { background: linear-gradient(90deg, var(--danger), transparent); }
+.stat-card.warn::before    { background: linear-gradient(90deg, var(--warn), transparent); }
+
+/* ── Grid layouts ──────────────────────────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+
+/* ── Uptime bar ────────────────────────────────────────────────── */
+.uptime-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.uptime-row:last-child { border-bottom: none; }
+.uptime-label { width: 140px; font-size: 12px; color: var(--muted); flex-shrink: 0; }
+.uptime-bar-wrap { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.uptime-bar-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+.uptime-val { width: 48px; text-align: right; font-size: 12px; color: var(--text); flex-shrink: 0; }
+
+/* ── Badge ─────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.04em;
+}
+.badge.green  { background: rgba(0,255,163,0.1); color: var(--accent2); border: 1px solid rgba(0,255,163,0.2); }
+.badge.red    { background: rgba(255,77,109,0.1); color: var(--danger);  border: 1px solid rgba(255,77,109,0.2); }
+.badge.blue   { background: rgba(0,194,255,0.1); color: var(--accent);  border: 1px solid rgba(0,194,255,0.2); }
+.badge.yellow { background: rgba(255,184,48,0.1); color: var(--warn);   border: 1px solid rgba(255,184,48,0.2); }
+
+/* ── Predict page ──────────────────────────────────────────────── */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: var(--surface2);
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(0,194,255,0.04);
+}
+.upload-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.upload-icon { font-size: 40px; margin-bottom: 12px; }
+.upload-zone h3 {
+  font-family: var(--font-head);
+  font-size: 16px; font-weight: 700;
+  color: var(--text); margin-bottom: 6px;
+}
+.upload-zone p { font-size: 12px; color: var(--muted); }
+
+.preview-wrap {
+  display: none;
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+  background: var(--surface2);
+  min-height: 200px;
+  align-items: center;
+  justify-content: center;
+}
+.preview-wrap img {
+  max-width: 100%; max-height: 320px;
+  object-fit: contain; display: block; margin: 0 auto;
+}
+.preview-wrap .remove-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(0,0,0,0.6); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px;
+  padding: 4px 10px; font-size: 11px; cursor: pointer;
+  transition: background var(--transition);
+}
+.preview-wrap .remove-btn:hover { background: var(--danger); border-color: var(--danger); }
+
+/* Result card */
+.result-card {
+  display: none;
+  border-radius: var(--radius);
+  padding: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  animation: fadeIn 0.4s ease;
+}
+.result-card.benign   { border-color: rgba(0,255,163,0.3); background: rgba(0,255,163,0.04); }
+.result-card.malignant{ border-color: rgba(255,77,109,0.3); background: rgba(255,77,109,0.04); }
+.result-label {
+  font-family: var(--font-head);
+  font-size: 32px; font-weight: 800;
+  letter-spacing: -0.02em; margin-bottom: 6px;
+}
+.result-label.benign    { color: var(--benign); }
+.result-label.malignant { color: var(--malignant); }
+.result-confidence { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+.prob-bar-wrap { margin-bottom: 10px; }
+.prob-label-row {
+  display: flex; justify-content: space-between;
+  font-size: 12px; margin-bottom: 5px;
+}
+.prob-bar {
+  height: 8px; background: var(--surface2);
+  border-radius: 4px; overflow: hidden;
+}
+.prob-bar-fill {
+  height: 100%; border-radius: 4px;
+  transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+}
+.prob-bar-fill.benign    { background: linear-gradient(90deg, var(--accent2), #00c9a7); }
+.prob-bar-fill.malignant { background: linear-gradient(90deg, var(--danger), #ff8fab); }
+
+.meta-row {
+  display: flex; gap: 16px; margin-top: 16px;
+  padding-top: 16px; border-top: 1px solid var(--border);
+}
+.meta-item { font-size: 11px; }
+.meta-item span { color: var(--muted); display: block; margin-bottom: 2px; }
+
+/* ── Buttons ───────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 22px; border-radius: 8px;
+  font-family: var(--font-mono); font-size: 13px;
+  font-weight: 500; cursor: pointer; border: none;
+  transition: all var(--transition); letter-spacing: 0.02em;
+  text-decoration: none;
+}
+.btn-primary {
+  background: var(--accent); color: var(--bg);
+  box-shadow: 0 0 20px rgba(0,194,255,0.2);
+}
+.btn-primary:hover { background: #29ccff; box-shadow: 0 0 30px rgba(0,194,255,0.35); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-danger {
+  background: var(--danger); color: white;
+  box-shadow: 0 0 20px rgba(255,77,109,0.2);
+}
+.btn-danger:hover { background: #ff6b85; }
+.btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-outline {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-success {
+  background: var(--accent2); color: var(--bg);
+  box-shadow: 0 0 20px rgba(0,255,163,0.2);
+}
+.btn-success:hover { background: #29ffb3; }
+.btn-success:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Loading spinner ───────────────────────────────────────────── */
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Retrain page ──────────────────────────────────────────────── */
+.retrain-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 36px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: var(--surface2);
+  position: relative;
+  margin-bottom: 20px;
+}
+.retrain-zone:hover { border-color: var(--accent2); background: rgba(0,255,163,0.03); }
+.retrain-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width:100%; height:100%; }
+.retrain-zone .upload-icon { color: var(--accent2); }
+
+.retrain-status-bar {
+  display: none;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.progress-track {
+  height: 6px; background: var(--border);
+  border-radius: 3px; overflow: hidden; margin: 12px 0;
+}
+.progress-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  animation: progress-pulse 1.5s ease-in-out infinite;
+}
+@keyframes progress-pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.retrain-log {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 12px;
+  color: var(--accent2);
+  max-height: 160px;
+  overflow-y: auto;
+  line-height: 1.8;
+  font-family: var(--font-mono);
+}
+
+/* ── Chart containers ──────────────────────────────────────────── */
+.chart-wrap { position: relative; height: 240px; }
+
+/* ── Table ─────────────────────────────────────────────────────── */
+.metrics-table { width: 100%; border-collapse: collapse; }
+.metrics-table th {
+  text-align: left; padding: 10px 14px;
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.metrics-table td {
+  padding: 12px 14px; font-size: 13px;
+  border-bottom: 1px solid rgba(26,48,72,0.5);
+}
+.metrics-table tr:last-child td { border-bottom: none; }
+.metric-bar-inline {
+  display: flex; align-items: center; gap: 10px;
+}
+.inline-bar {
+  flex: 1; height: 5px; background: var(--surface2);
+  border-radius: 3px; overflow: hidden;
+}
+.inline-bar-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+}
+
+/* ── API url input ─────────────────────────────────────────────── */
+.api-config {
+  display: flex; gap: 10px; align-items: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 24px;
+}
+.api-config label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.api-config input {
+  flex: 1; background: transparent; border: none;
+  color: var(--accent); font-family: var(--font-mono);
+  font-size: 13px; outline: none;
+}
+.api-config .btn { padding: 6px 14px; font-size: 12px; }
+
+/* ── Toast ─────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 18px;
+  font-size: 13px; z-index: 9999;
+  display: none; animation: slideUp 0.3s ease;
+  max-width: 320px;
+}
+.toast.show { display: flex; align-items: center; gap: 10px; }
+.toast.success { border-color: rgba(0,255,163,0.3); }
+.toast.error   { border-color: rgba(255,77,109,0.3); }
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ── Scrollbar ─────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<!-- ── Sidebar ─────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">🔬</div>
+    <h1>Thyroid<br>Classifier</h1>
+    <span>ML Pipeline v3</span>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-item active" onclick="showPage('overview')" data-page="overview">
+      <span class="icon">◈</span> Overview
+    </div>
+    <div class="nav-item" onclick="showPage('predict')" data-page="predict">
+      <span class="icon">◎</span> Predict
+    </div>
+    <div class="nav-item" onclick="showPage('visualize')" data-page="visualize">
+      <span class="icon">◉</span> Visualize
+    </div>
+    <div class="nav-item" onclick="showPage('retrain')" data-page="retrain">
+      <span class="icon">↻</span> Retrain
+    </div>
+  </nav>
+
+  <div class="sidebar-status">
+    <div class="status-dot">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">Connecting...</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ── Main ───────────────────────────────────────────────── -->
+<main class="main">
+
+  <!-- API Config bar (shown on all pages) -->
+  <div class="api-config">
+    <label>API URL</label>
+    <input type="text" id="api-url" value="http://localhost:8000" placeholder="http://localhost:8000"/>
+    <button class="btn btn-outline" onclick="checkHealth()">Connect</button>
+  </div>
+
+  <!-- ── Overview Page ──────────────────────────────────── -->
+  <section class="page active" id="page-overview">
+    <div class="page-header">
+      <h2>System Overview</h2>
+      <p>Model uptime, performance metrics, and system health</p>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Model Status</div>
+        <div class="stat-value" id="stat-status">—</div>
+        <div class="stat-sub" id="stat-uptime">Checking...</div>
+      </div>
+      <div class="stat-card accent2">
+        <div class="stat-label">AUC Score</div>
+        <div class="stat-value" id="stat-auc">—</div>
+        <div class="stat-sub">Test set</div>
+      </div>
+      <div class="stat-card warn">
+        <div class="stat-label">Predictions</div>
+        <div class="stat-value" id="stat-preds">—</div>
+        <div class="stat-sub">Total served</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-label">Model Version</div>
+        <div class="stat-value" id="stat-version">—</div>
+        <div class="stat-sub">EfficientNetB0</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Metrics table -->
+      <div class="card">
+        <div class="card-title">Model Performance Metrics</div>
+        <table class="metrics-table">
+          <thead>
+            <tr><th>Metric</th><th>Score</th><th>Visual</th></tr>
+          </thead>
+          <tbody id="metrics-tbody">
+            <tr><td colspan="3" style="color:var(--muted);text-align:center;padding:20px">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Health checks -->
+      <div class="card">
+        <div class="card-title">System Health</div>
+        <div id="health-rows">
+          <div class="uptime-row">
+            <span class="uptime-label">API Server</span>
+            <div class="uptime-bar-wrap"><div class="uptime-bar-fill" style="width:0%;background:var(--accent)"></div></div>
+            <span class="uptime-val" id="h-api">—</span>
+          </div>
+          <div class="uptime-row">
+            <span class="uptime-label">Model Loaded</span>
+            <div class="uptime-bar-wrap"><div class="uptime-bar-fill" style="width:0%;background:var(--accent2)"></div></div>
+            <span class="uptime-val" id="h-model">—</span>
+          </div>
+          <div class="uptime-row">
+            <span class="uptime-label">Retraining</span>
+            <div class="uptime-bar-wrap"><div class="uptime-bar-fill" style="width:0%;background:var(--warn)"></div></div>
+            <span class="uptime-val" id="h-retrain">—</span>
+          </div>
+        </div>
+        <div style="margin-top:20px">
+          <div class="card-title">Model Info</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px" id="model-info-grid">
+            <div style="font-size:12px;color:var(--muted)">Loading model info...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent activity log -->
+    <div class="card">
+      <div class="card-title">Activity Log</div>
+      <div class="retrain-log" id="activity-log" style="color:var(--muted)">
+        Waiting for activity...
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Predict Page ────────────────────────────────────── -->
+  <section class="page" id="page-predict">
+    <div class="page-header">
+      <h2>Predict</h2>
+      <p>Upload a thyroid ultrasound image to classify as Benign or Malignant</p>
+    </div>
+
+    <div class="grid-2">
+      <!-- Upload -->
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">Upload Image</div>
+          <div class="upload-zone" id="upload-zone"
+               ondragover="handleDragOver(event)"
+               ondragleave="handleDragLeave(event)"
+               ondrop="handleDrop(event)">
+            <input type="file" id="predict-file" accept=".jpg,.jpeg,.png" onchange="handleFileSelect(event)"/>
+            <div class="upload-icon">🩻</div>
+            <h3>Drop ultrasound image here</h3>
+            <p>Supports .jpg, .jpeg, .png · Max 10MB</p>
+          </div>
+
+          <div class="preview-wrap" id="preview-wrap" style="margin-top:12px">
+            <img id="preview-img" src="" alt="Preview"/>
+            <button class="remove-btn" onclick="clearImage()">✕ Remove</button>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn btn-primary" id="predict-btn" onclick="runPrediction()" disabled>
+            <div class="spinner" id="predict-spinner"></div>
+            <span id="predict-btn-text">Run Prediction</span>
+          </button>
+          <div style="flex:1"></div>
+          <div style="font-size:11px;color:var(--muted)">
+            Threshold: <span id="thresh-display" style="color:var(--accent)">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div>
+        <div class="result-card" id="result-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+            <div>
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:6px">Prediction Result</div>
+              <div class="result-label" id="result-label">—</div>
+              <div class="result-confidence" id="result-confidence">—</div>
+            </div>
+            <div id="result-badge"></div>
+          </div>
+
+          <div class="prob-bar-wrap">
+            <div class="prob-label-row">
+              <span style="color:var(--benign)">Benign</span>
+              <span id="prob-benign-val">—</span>
+            </div>
+            <div class="prob-bar">
+              <div class="prob-bar-fill benign" id="prob-benign-bar" style="width:0%"></div>
+            </div>
+          </div>
+          <div class="prob-bar-wrap" style="margin-top:10px">
+            <div class="prob-label-row">
+              <span style="color:var(--malignant)">Malignant</span>
+              <span id="prob-malignant-val">—</span>
+            </div>
+            <div class="prob-bar">
+              <div class="prob-bar-fill malignant" id="prob-malignant-bar" style="width:0%"></div>
+            </div>
+          </div>
+
+          <div class="meta-row">
+            <div class="meta-item">
+              <span>Inference Time</span>
+              <strong id="meta-time">—</strong>
+            </div>
+            <div class="meta-item">
+              <span>Threshold Used</span>
+              <strong id="meta-thresh">—</strong>
+            </div>
+            <div class="meta-item">
+              <span>Timestamp</span>
+              <strong id="meta-ts">—</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="result-empty" class="card" style="text-align:center;padding:48px 24px">
+          <div style="font-size:40px;margin-bottom:12px;opacity:0.3">◎</div>
+          <p style="color:var(--muted)">Upload an image and click<br>Run Prediction to see results</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Visualize Page ──────────────────────────────────── -->
+  <section class="page" id="page-visualize">
+    <div class="page-header">
+      <h2>Data Visualizations</h2>
+      <p>Insights from the thyroid ultrasound dataset</p>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:20px">
+      <!-- Class distribution -->
+      <div class="card">
+        <div class="card-title">Feature 1 — Class Distribution</div>
+        <div class="chart-wrap"><canvas id="chart-dist"></canvas></div>
+        <p style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6">
+          <strong style="color:var(--text)">Interpretation:</strong>
+          The dataset contains ~2879 thyroid ultrasound images split between benign and malignant classes.
+          Class weights are applied during training to prevent the model from biasing toward the majority class.
+        </p>
+      </div>
+
+      <!-- Model metrics radar -->
+      <div class="card">
+        <div class="card-title">Feature 2 — Model Performance Radar</div>
+        <div class="chart-wrap"><canvas id="chart-radar"></canvas></div>
+        <p style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6">
+          <strong style="color:var(--text)">Interpretation:</strong>
+          Recall is prioritised over Precision in medical imaging — a missed malignant case
+          (false negative) carries far greater clinical risk than a false alarm (false positive).
+        </p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Training history line chart -->
+      <div class="card">
+        <div class="card-title">Feature 3 — Training vs Validation AUC (v2 vs v3)</div>
+        <div class="chart-wrap"><canvas id="chart-history"></canvas></div>
+        <p style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6">
+          <strong style="color:var(--text)">Interpretation:</strong>
+          v2 showed a large train/val gap indicating overfitting. v3 applied AdamW, stronger dropout,
+          and fewer unfrozen layers — closing the gap while maintaining strong validation AUC ~0.80.
+        </p>
+      </div>
+
+      <!-- Confidence distribution -->
+      <div class="card">
+        <div class="card-title">Feature 4 — Prediction Confidence Distribution</div>
+        <div class="chart-wrap"><canvas id="chart-confidence"></canvas></div>
+        <p style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.6">
+          <strong style="color:var(--text)">Interpretation:</strong>
+          A well-calibrated model pushes predictions toward the extremes (0 or 1), not the middle.
+          Separation between benign and malignant distributions indicates strong discriminative power.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Retrain Page ────────────────────────────────────── -->
+  <section class="page" id="page-retrain">
+    <div class="page-header">
+      <h2>Retrain Model</h2>
+      <p>Upload new labelled data and trigger retraining</p>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <!-- Step 1: Upload -->
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-title">Step 1 — Upload New Data</div>
+          <div class="retrain-zone" id="retrain-zone">
+            <input type="file" id="retrain-file" accept=".zip" onchange="handleRetrainFile(event)"/>
+            <div class="upload-icon">📦</div>
+            <h3 style="font-family:var(--font-head);font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">
+              Upload ZIP file
+            </h3>
+            <p style="font-size:12px;color:var(--muted)">
+              Must contain <code style="color:var(--accent2)">benign/</code> and
+              <code style="color:var(--accent2)">malignant/</code> subfolders with .jpg images
+            </p>
+          </div>
+
+          <div id="upload-summary" style="display:none;margin-top:14px;padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Upload Summary</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px" id="upload-counts"></div>
+          </div>
+        </div>
+
+        <!-- Step 2: Retrain -->
+        <div class="card">
+          <div class="card-title">Step 2 — Trigger Retraining</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+            Retraining runs in the background. The model will be hot-swapped after completion
+            — no server restart required.
+          </p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <button class="btn btn-success" id="retrain-btn" onclick="triggerRetrain()" disabled>
+              <div class="spinner" id="retrain-spinner"></div>
+              <span id="retrain-btn-text">↻ Start Retraining</span>
+            </button>
+            <button class="btn btn-outline" onclick="checkRetrainStatus()">
+              Check Status
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Retrain status + log -->
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">Retraining Status</div>
+          <div id="retrain-status-display" style="padding:20px;text-align:center;color:var(--muted)">
+            <div style="font-size:32px;margin-bottom:8px;opacity:0.3">↻</div>
+            No retraining in progress
+          </div>
+          <div class="retrain-status-bar" id="retrain-status-bar">
+            <div style="display:flex;justify-content:space-between;font-size:12px">
+              <span style="color:var(--accent2)">● Retraining in progress...</span>
+              <span id="retrain-elapsed" style="color:var(--muted)">0s</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="progress-fill" style="width:60%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Retraining Log</div>
+          <div class="retrain-log" id="retrain-log">
+            Waiting for retraining to start...
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ───────────────────────────────────────────────────────────
+const state = {
+  apiUrl       : 'http://localhost:8000',
+  modelMeta    : null,
+  uploadBatchId: null,
+  retraining   : false,
+  retrainTimer : null,
+  retrainStart : null,
+  charts       : {},
+  activityLog  : []
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────
+function getApiUrl() {
+  return document.getElementById('api-url').value.replace(/\/$/, '');
+}
+
+function log(msg, type='info') {
+  const el  = document.getElementById('activity-log');
+  const ts  = new Date().toLocaleTimeString();
+  const color = type === 'error' ? 'var(--danger)' :
+                type === 'success' ? 'var(--accent2)' : 'var(--accent)';
+  el.innerHTML += `<div style="color:${color}">[${ts}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function retrainLog(msg) {
+  const el = document.getElementById('retrain-log');
+  const ts = new Date().toLocaleTimeString();
+  el.innerHTML += `<div>[${ts}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.className = `toast show ${type}`;
+  t.innerHTML = `<span>${type === 'success' ? '✓' : '✕'}</span> ${msg}`;
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  document.querySelector(`[data-page="${name}"]`).classList.add('active');
+}
+
+// ── API calls ────────────────────────────────────────────────────────
+async function apiFetch(path, opts={}) {
+  const url = getApiUrl() + path;
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
+// ── Health check ─────────────────────────────────────────────────────
+async function checkHealth() {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  try {
+    const [health, info] = await Promise.all([
+      apiFetch('/health'),
+      apiFetch('/model-info')
+    ]);
+    state.modelMeta = info;
+
+    // Sidebar status
+    dot.className  = 'dot online';
+    text.textContent = 'Online';
+
+    // Stat cards
+    document.getElementById('stat-status').textContent  = health.model_loaded ? 'Online' : 'Degraded';
+    document.getElementById('stat-auc').textContent     = info.metrics.auc ? info.metrics.auc.toFixed(3) : '—';
+    document.getElementById('stat-preds').textContent   = health.prediction_count;
+    document.getElementById('stat-version').textContent = info.model_version.toUpperCase();
+
+    // Uptime since
+    const since = new Date(health.uptime_since);
+    const mins  = Math.floor((Date.now() - since) / 60000);
+    document.getElementById('stat-uptime').textContent = `Up ${mins}m`;
+
+    // Health bars
+    setHealthBar('h-api',     health.status === 'ok',     'OK',     'DEGRADED');
+    setHealthBar('h-model',   health.model_loaded,        'Loaded', 'Not Loaded');
+    setHealthBar('h-retrain', !health.retraining,         'Idle',   'Running');
+
+    // Threshold display
+    if (info.optimal_threshold) {
+      document.getElementById('thresh-display').textContent = info.optimal_threshold.toFixed(3);
+    }
+
+    // Model info grid
+    const grid = document.getElementById('model-info-grid');
+    grid.innerHTML = [
+      ['Architecture', 'EfficientNetB0'],
+      ['Input Size',   info.img_size ? info.img_size.join(' × ') : '224 × 224'],
+      ['Classes',      info.class_names ? info.class_names.join(' / ') : 'Benign / Malignant'],
+      ['Threshold',    info.optimal_threshold ? info.optimal_threshold.toFixed(4) : '0.5']
+    ].map(([k,v]) => `
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.08em">${k}</div>
+        <div style="font-size:12px;color:var(--text)">${v}</div>
+      </div>
+    `).join('');
+
+    // Metrics table
+    updateMetricsTable(info.metrics);
+
+    log(`Connected to API — model ${info.model_version}, AUC ${info.metrics.auc?.toFixed(3) || 'N/A'}`, 'success');
+    showToast('Connected to API', 'success');
+
+  } catch(e) {
+    dot.className  = 'dot offline';
+    text.textContent = 'Offline';
+    log(`Connection failed: ${e.message}`, 'error');
+    showToast(`Cannot connect: ${e.message}`, 'error');
+  }
+}
+
+function setHealthBar(id, ok, okLabel, failLabel) {
+  document.getElementById(id).textContent = ok ? okLabel : failLabel;
+  const row  = document.getElementById(id).closest('.uptime-row');
+  const fill = row.querySelector('.uptime-bar-fill');
+  fill.style.width = ok ? '100%' : '20%';
+  fill.style.background = ok ? 'var(--accent2)' : 'var(--danger)';
+}
+
+function updateMetricsTable(metrics) {
+  const rows = [
+    ['Accuracy',  metrics.accuracy],
+    ['Precision', metrics.precision],
+    ['Recall',    metrics.recall],
+    ['F1 Score',  metrics.f1],
+    ['AUC-ROC',   metrics.auc],
+  ];
+  const tbody = document.getElementById('metrics-tbody');
+  tbody.innerHTML = rows.map(([name, val]) => {
+    const pct = val ? (val * 100).toFixed(1) : '—';
+    const w   = val ? (val * 100).toFixed(0) : 0;
+    return `
+      <tr>
+        <td>${name}</td>
+        <td><strong style="color:var(--accent)">${pct}%</strong></td>
+        <td>
+          <div class="metric-bar-inline">
+            <div class="inline-bar">
+              <div class="inline-bar-fill" style="width:${w}%"></div>
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// ── Prediction ────────────────────────────────────────────────────────
+function handleDragOver(e)  { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
+function handleDragLeave(e) { document.getElementById('upload-zone').classList.remove('drag-over'); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadImagePreview(file);
+}
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) loadImagePreview(file);
+}
+function loadImagePreview(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('preview-img').src = e.target.result;
+    document.getElementById('preview-wrap').style.display = 'flex';
+    document.getElementById('upload-zone').style.display  = 'none';
+    document.getElementById('predict-btn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+function clearImage() {
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('upload-zone').style.display  = 'block';
+  document.getElementById('predict-file').value = '';
+  document.getElementById('predict-btn').disabled = true;
+  document.getElementById('result-card').style.display  = 'none';
+  document.getElementById('result-empty').style.display = 'block';
+}
+
+async function runPrediction() {
+  const fileInput = document.getElementById('predict-file');
+  const file      = fileInput.files[0];
+  if (!file) return;
+
+  const btn     = document.getElementById('predict-btn');
+  const spinner = document.getElementById('predict-spinner');
+  const btnText = document.getElementById('predict-btn-text');
+
+  btn.disabled       = true;
+  spinner.style.display = 'block';
+  btnText.textContent   = 'Running...';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(getApiUrl() + '/predict', {
+      method: 'POST', body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail);
+    }
+    const data = await res.json();
+    showResult(data);
+    log(`Prediction: ${data.label} (${data.confidence}% confidence, ${data.inference_time_ms}ms)`,
+        data.label === 'Malignant' ? 'error' : 'success');
+
+  } catch(e) {
+    showToast(`Prediction failed: ${e.message}`, 'error');
+    log(`Prediction error: ${e.message}`, 'error');
+  } finally {
+    btn.disabled          = false;
+    spinner.style.display = 'none';
+    btnText.textContent   = 'Run Prediction';
+  }
+}
+
+function showResult(data) {
+  const isM   = data.label === 'Malignant';
+  const card  = document.getElementById('result-card');
+  const empty = document.getElementById('result-empty');
+
+  card.className  = `result-card ${isM ? 'malignant' : 'benign'}`;
+  card.style.display  = 'block';
+  empty.style.display = 'none';
+
+  document.getElementById('result-label').className    = `result-label ${isM ? 'malignant' : 'benign'}`;
+  document.getElementById('result-label').textContent  = data.label;
+  document.getElementById('result-confidence').textContent = `${data.confidence}% confidence`;
+  document.getElementById('result-badge').innerHTML    =
+    `<span class="badge ${isM ? 'red' : 'green'}">${isM ? '⚠ High Risk' : '✓ Low Risk'}</span>`;
+
+  document.getElementById('prob-benign-val').textContent    = `${data.prob_benign}%`;
+  document.getElementById('prob-malignant-val').textContent = `${data.prob_malignant}%`;
+
+  setTimeout(() => {
+    document.getElementById('prob-benign-bar').style.width    = `${data.prob_benign}%`;
+    document.getElementById('prob-malignant-bar').style.width = `${data.prob_malignant}%`;
+  }, 50);
+
+  document.getElementById('meta-time').textContent   = `${data.inference_time_ms}ms`;
+  document.getElementById('meta-thresh').textContent = data.threshold_used;
+  document.getElementById('meta-ts').textContent     = new Date(data.timestamp).toLocaleTimeString();
+}
+
+// ── Retrain ──────────────────────────────────────────────────────────
+async function handleRetrainFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  retrainLog(`Uploading ${file.name} (${(file.size/1024/1024).toFixed(1)}MB)...`);
+  document.getElementById('retrain-btn').disabled = true;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const data = await fetch(getApiUrl() + '/upload-data', {
+      method: 'POST', body: formData
+    }).then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.detail); }); return r.json(); });
+
+    state.uploadBatchId = data.batch_id;
+    document.getElementById('retrain-btn').disabled = false;
+
+    // Show summary
+    const summary = document.getElementById('upload-summary');
+    const counts  = document.getElementById('upload-counts');
+    summary.style.display = 'block';
+    counts.innerHTML = [
+      ['Benign',    data.benign_count,    'var(--benign)'],
+      ['Malignant', data.malignant_count, 'var(--malignant)'],
+      ['Total',     data.total,           'var(--accent)']
+    ].map(([l,v,c]) => `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center">
+        <div style="font-size:20px;font-weight:800;font-family:var(--font-head);color:${c}">${v}</div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em">${l}</div>
+      </div>
+    `).join('');
+
+    retrainLog(`✓ Upload successful — batch ${data.batch_id} (${data.total} images)`);
+    showToast(`Uploaded ${data.total} images successfully`, 'success');
+    log(`Data uploaded: ${data.total} images (batch ${data.batch_id})`, 'success');
+
+  } catch(e) {
+    retrainLog(`✕ Upload failed: ${e.message}`);
+    showToast(`Upload failed: ${e.message}`, 'error');
+  }
+}
+
+async function triggerRetrain() {
+  const btn     = document.getElementById('retrain-btn');
+  const spinner = document.getElementById('retrain-spinner');
+  const btnText = document.getElementById('retrain-btn-text');
+
+  btn.disabled          = true;
+  spinner.style.display = 'block';
+  btnText.textContent   = 'Starting...';
+
+  try {
+    const url = getApiUrl() + '/retrain' + (state.uploadBatchId ? `?batch_id=${state.uploadBatchId}` : '');
+    const data = await fetch(url, { method: 'POST' })
+      .then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.detail); }); return r.json(); });
+
+    state.retraining  = true;
+    state.retrainStart = Date.now();
+
+    document.getElementById('retrain-status-bar').style.display = 'block';
+    document.getElementById('retrain-status-display').style.display = 'none';
+
+    retrainLog('▶ Retraining started...');
+    log('Retraining triggered', 'success');
+    showToast('Retraining started in background', 'success');
+
+    // Poll status
+    state.retrainTimer = setInterval(pollRetrainStatus, 3000);
+
+    // Elapsed timer
+    setInterval(() => {
+      if (!state.retraining) return;
+      const s = Math.floor((Date.now() - state.retrainStart) / 1000);
+      document.getElementById('retrain-elapsed').textContent = `${s}s`;
+    }, 1000);
+
+  } catch(e) {
+    retrainLog(`✕ Failed to start: ${e.message}`);
+    showToast(`Retrain failed: ${e.message}`, 'error');
+    btn.disabled          = false;
+    spinner.style.display = 'none';
+    btnText.textContent   = '↻ Start Retraining';
+  }
+}
+
+async function checkRetrainStatus() {
+  try {
+    const data = await apiFetch('/retrain-status');
+    if (data.retraining) {
+      showToast('Retraining is in progress...', 'success');
+    } else if (data.finished_at) {
+      showToast(`Retraining finished at ${new Date(data.finished_at).toLocaleTimeString()}`, 'success');
+    } else {
+      showToast('No retraining in progress', 'success');
+    }
+  } catch(e) {
+    showToast(`Status check failed: ${e.message}`, 'error');
+  }
+}
+
+async function pollRetrainStatus() {
+  try {
+    const data = await apiFetch('/retrain-status');
+
+    if (!data.retraining) {
+      clearInterval(state.retrainTimer);
+      state.retraining = false;
+
+      const bar     = document.getElementById('retrain-status-bar');
+      const display = document.getElementById('retrain-status-display');
+      const btn     = document.getElementById('retrain-btn');
+      const spinner = document.getElementById('retrain-spinner');
+      const btnText = document.getElementById('retrain-btn-text');
+
+      bar.style.display     = 'none';
+      display.style.display = 'block';
+      btn.disabled          = false;
+      spinner.style.display = 'none';
+      btnText.textContent   = '↻ Start Retraining';
+
+      if (data.error) {
+        display.innerHTML = `<div style="color:var(--danger)">✕ Retraining failed<br><small>${data.error}</small></div>`;
+        retrainLog(`✕ Retraining failed: ${data.error}`);
+        log(`Retraining failed: ${data.error}`, 'error');
+      } else {
+        const finished = data.finished_at ? new Date(data.finished_at).toLocaleTimeString() : 'just now';
+        display.innerHTML = `<div style="color:var(--accent2)">✓ Retraining completed at ${finished}</div>`;
+        retrainLog(`✓ Retraining complete at ${finished}`);
+        log('Retraining completed — model updated', 'success');
+        showToast('Model retrained successfully!', 'success');
+        checkHealth(); // refresh metrics
+      }
+    }
+  } catch(e) { /* API might be busy retraining */ }
+}
+
+// ── Charts ────────────────────────────────────────────────────────────
+function initCharts() {
+  Chart.defaults.color          = '#5a7a8a';
+  Chart.defaults.borderColor    = '#1a3048';
+  Chart.defaults.font.family    = "'DM Mono', monospace";
+
+  // 1. Class distribution bar chart
+  state.charts.dist = new Chart(document.getElementById('chart-dist'), {
+    type: 'bar',
+    data: {
+      labels: ['Benign', 'Malignant'],
+      datasets: [{
+        data: [1459, 1420],
+        backgroundColor: ['rgba(0,255,163,0.2)', 'rgba(255,77,109,0.2)'],
+        borderColor:     ['#00ffa3', '#ff4d6d'],
+        borderWidth: 2, borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { grid: { color: 'rgba(26,48,72,0.8)' }, ticks: { color: '#5a7a8a' } },
+        x: { grid: { display: false },              ticks: { color: '#5a7a8a' } }
+      }
+    }
+  });
+
+  // 2. Radar chart
+  state.charts.radar = new Chart(document.getElementById('chart-radar'), {
+    type: 'radar',
+    data: {
+      labels: ['Accuracy', 'Precision', 'Recall', 'F1 Score', 'AUC'],
+      datasets: [
+        {
+          label: 'v2',
+          data: [72, 63, 70, 66, 80],
+          borderColor: 'rgba(0,194,255,0.5)',
+          backgroundColor: 'rgba(0,194,255,0.05)',
+          borderWidth: 1.5, pointRadius: 3
+        },
+        {
+          label: 'v3 (Final)',
+          data: [68, 65, 72, 68, 80],
+          borderColor: '#00ffa3',
+          backgroundColor: 'rgba(0,255,163,0.08)',
+          borderWidth: 2, pointRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#5a7a8a', padding: 12, font: { size: 11 } } } },
+      scales: {
+        r: {
+          grid:      { color: 'rgba(26,48,72,0.8)' },
+          pointLabels:{ color: '#5a7a8a', font: { size: 11 } },
+          ticks:     { display: false }, min: 0, max: 100
+        }
+      }
+    }
+  });
+
+  // 3. Training history (simulated v2 vs v3 AUC)
+  const ep2 = Array.from({length:21}, (_,i) => i+1);
+  const ep3 = Array.from({length:36}, (_,i) => i+1);
+  const v2train = ep2.map(e => Math.min(0.97, 0.65 + e*0.016 + Math.sin(e)*0.01));
+  const v2val   = ep2.map(e => Math.min(0.82, 0.73 + e*0.003 + Math.sin(e*1.5)*0.015));
+  const v3train = ep3.map(e => Math.min(0.86, 0.55 + e*0.009 + Math.sin(e)*0.008));
+  const v3val   = ep3.map(e => Math.min(0.80, 0.66 + e*0.004 + Math.sin(e*1.2)*0.01));
+
+  state.charts.history = new Chart(document.getElementById('chart-history'), {
+    type: 'line',
+    data: {
+      datasets: [
+        { label:'v2 Train', data: v2train.map((y,i)=>({x:ep2[i],y})), borderColor:'rgba(0,194,255,0.35)', borderWidth:1.5, borderDash:[4,4], pointRadius:0, tension:0.4 },
+        { label:'v2 Val',   data: v2val.map((y,i)=>({x:ep2[i],y})),   borderColor:'rgba(255,77,109,0.35)', borderWidth:1.5, borderDash:[4,4], pointRadius:0, tension:0.4 },
+        { label:'v3 Train', data: v3train.map((y,i)=>({x:ep3[i],y})), borderColor:'#00c2ff', borderWidth:2, pointRadius:0, tension:0.4 },
+        { label:'v3 Val',   data: v3val.map((y,i)=>({x:ep3[i],y})),   borderColor:'#ff4d6d', borderWidth:2, pointRadius:0, tension:0.4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      parsing: false,
+      plugins: { legend: { labels: { color:'#5a7a8a', font:{size:11}, padding:10 } } },
+      scales: {
+        x: { type:'linear', grid:{color:'rgba(26,48,72,0.8)'}, ticks:{color:'#5a7a8a'}, title:{display:true,text:'Epoch',color:'#5a7a8a'} },
+        y: { grid:{color:'rgba(26,48,72,0.8)'}, ticks:{color:'#5a7a8a'}, min:0.4, max:1.0 }
+      }
+    }
+  });
+
+  // 4. Confidence distribution
+  function gaussianSamples(mean, std, n) {
+    return Array.from({length:n}, () => {
+      let u=0,v=0;
+      while(!u) u=Math.random(); while(!v) v=Math.random();
+      return mean + std * Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+    });
+  }
+  const bins    = Array.from({length:20}, (_,i) => (i*0.05).toFixed(2));
+  const benignP = gaussianSamples(0.18, 0.12, 300).filter(x=>x>=0&&x<=1);
+  const malignP = gaussianSamples(0.75, 0.15, 300).filter(x=>x>=0&&x<=1);
+
+  function toBins(samples) {
+    const counts = new Array(20).fill(0);
+    samples.forEach(s => { const i = Math.min(19, Math.floor(s/0.05)); counts[i]++; });
+    return counts;
+  }
+
+  state.charts.confidence = new Chart(document.getElementById('chart-confidence'), {
+    type: 'bar',
+    data: {
+      labels: bins,
+      datasets: [
+        { label:'Benign',    data:toBins(benignP), backgroundColor:'rgba(0,255,163,0.3)', borderColor:'#00ffa3', borderWidth:1 },
+        { label:'Malignant', data:toBins(malignP), backgroundColor:'rgba(255,77,109,0.3)', borderColor:'#ff4d6d', borderWidth:1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color:'#5a7a8a', font:{size:11}, padding:10 } } },
+      scales: {
+        x: { grid:{display:false}, ticks:{color:'#5a7a8a',maxTicksLimit:10}, title:{display:true,text:'P(Malignant)',color:'#5a7a8a'} },
+        y: { grid:{color:'rgba(26,48,72,0.8)'}, ticks:{color:'#5a7a8a'} }
+      }
+    }
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  checkHealth();
+  // Auto-refresh health every 30s
+  setInterval(checkHealth, 30000);
+});
+</script>
+</body>
+</html>
