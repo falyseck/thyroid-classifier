@@ -39,7 +39,7 @@ def _load_model():
                 'Train the model first using model.py'
             )
         print(f'Loading model from {MODEL_H5} ...')
-        _model = keras.models.load_model(str(MODEL_H5))
+        _model = keras.models.load_model(str(MODEL_H5), compile=False, safe_mode=False)
         print('✅ Model loaded.')
     return _model
 
