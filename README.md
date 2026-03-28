@@ -45,7 +45,7 @@ This project implements an end-to-end Machine Learning pipeline for thyroid canc
 ## 🗂 Directory Structure
 
 ```
-ML_Pipeline_Summative/
+thyroid-classifier/
 ├── .streamlit/
 │   └── config.toml
 ├── api/
